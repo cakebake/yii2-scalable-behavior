@@ -1,0 +1,18 @@
+{
+	"name": "cakebake/yii2-scalable-behavior",
+	"description": "Key-Value storage is a very simplistic, but very powerful model. Use this behavior to expand your Yii 2 model without changing the structure.",
+	"type": "yii2-extension",
+	"keywords": ["yii2","extension","scalable","behavior","data","dynamic","virtual","attributes","serialize","unserialize","convert","ActiveRecord","mysql","db","database","schema"],
+	"license": "LGPL-V3",
+	"authors": [
+		{
+			"name": "cakebake (Jens A.)",
+			"email": "cakebake.dev@gmail.com"
+		}
+	],
+	"autoload": {
+		"psr-4": {
+			"cakebake\\behaviors\\": ""
+		}
+	}
+}
