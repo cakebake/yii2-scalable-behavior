@@ -9,7 +9,7 @@ use yii\base\Behavior;
 /**
 * Scalable Database Schema
 *
-* Key-Value storage is a very simplistic, but very powerful model. 
+* Key-Value storage is a very simplistic, but very powerful model.
 * Use this behavior to expand your Yii 2 model without changing the structure.
 *
 * @example
@@ -19,7 +19,7 @@ use yii\base\Behavior;
 * public function behaviors()
 * {
 *     return [
-*         [
+*         'scaleable' => [
 *             'class' => ScalableBehavior::className(),
 *             ...
 *         ],
@@ -36,17 +36,17 @@ use yii\base\Behavior;
 class ScalableBehavior extends Behavior
 {
     /**
-    * @var array The configured attributes to serialize / unserialize their values
+    * @var array The owner object's attributes / the columns of the corresponding table, which are used as storage for the virtual attributes
     */
-    public $serializedAttributes = [];
+    public $scalableAttributes = [];
 
     /**
-    * @var array The configured virtual attributes
+    * @var array Definition of virtual attributes that are added to the owner object
     */
     public $virtualAttributes = [];
 
     /**
-    * @var int The level of compression. Can be given as 0 for no compression up to 9 for maximum compression.
+    * @var int Compression of the virtual attributes. Can be given as 0 for no compression up to 9 for maximum compression.
     */
     public $compressionLevel = 0;
 
@@ -56,10 +56,10 @@ class ScalableBehavior extends Behavior
     public function events()
     {
         return [
-            ActiveRecord::EVENT_BEFORE_INSERT => 'setData',
-            ActiveRecord::EVENT_BEFORE_UPDATE => 'setData',
-            ActiveRecord::EVENT_AFTER_FIND => 'getData',
-            ActiveRecord::EVENT_AFTER_INSERT => 'getData',
+            ActiveRecord::EVENT_BEFORE_INSERT => 'virtualToScalable',
+            ActiveRecord::EVENT_BEFORE_UPDATE => 'virtualToScalable',
+            ActiveRecord::EVENT_AFTER_FIND => 'scalableToVirtual',
+            ActiveRecord::EVENT_AFTER_INSERT => 'scalableToVirtual',
         ];
     }
 
@@ -68,18 +68,18 @@ class ScalableBehavior extends Behavior
     *
     * @param mixed $event
     */
-    public function setData($event)
+    public function virtualToScalable($event)
     {
-        if (($attributes = $this->getSerializedAttributes()) == null)
+        if (($attributes = $this->scalableAttributesNames()) === null)
             return false;
 
-        foreach ($attributes as $name) {
-            $temp = [];
-            foreach ($this->owner->$name as $aKey => $aVal) {
-                $temp[$aKey] = $this->owner->{$aKey};
+        foreach ($attributes as $a) {
+            $virtualAttributesArray = [];
+            foreach ($this->virtualAttributesNames() as $virtualAttribute) {
+                $virtualAttributesArray[$virtualAttribute] = $this->owner->{$virtualAttribute};
             }
-            if (($val = $this->convert($temp)) !== false) {
-                $this->owner->{$name} = $val;
+            if (($scalableValue = $this->convert($virtualAttributesArray)) !== false) {
+                $this->owner->{$a} = $scalableValue;
             }
         }
     }
@@ -90,16 +90,15 @@ class ScalableBehavior extends Behavior
     *
     * @param mixed $event
     */
-    public function getData($event)
+    public function scalableToVirtual($event)
     {
-        if (($attributes = $this->getSerializedAttributes()) == null)
+        if (($attributes = $this->scalableAttributesNames()) === null)
             return false;
 
-        foreach ($attributes as $name) {
-            if (($val = $this->unConvert($this->owner->$name)) !== false) {
-                $this->owner->$name = $val;
-                foreach ($val as $aKey => $aVal) {
-                    $this->owner->$aKey = $aVal;
+        foreach ($attributes as $a) {
+            if (($virtualAttributesArray = $this->unConvert($this->owner->{$a})) !== false) {
+                foreach ($virtualAttributesArray as $key => $value) {
+                    $this->owner->{$key} = $value;
                 }
             }
         }
@@ -111,7 +110,7 @@ class ScalableBehavior extends Behavior
     * @param mixed $data
     * @return string|false
     */
-    protected function convert($data)
+    public function convert($data)
     {
         if (empty($data))
             return false;
@@ -119,7 +118,7 @@ class ScalableBehavior extends Behavior
         if (($data = @serialize($data)) === false)
             return false;
 
-        if ((int)$this->compressionLevel != 0) {
+        if ((int)$this->compressionLevel != 0 && function_exists('gzcompress')) {
             $data = (($compressed = @gzcompress($data, (int)$this->compressionLevel)) !== false) ? $compressed : $data;
         }
 
@@ -132,7 +131,7 @@ class ScalableBehavior extends Behavior
     * @param mixed $data
     * @return mixed
     */
-    protected function unConvert($data)
+    public function unConvert($data)
     {
         if (empty($data))
             return false;
@@ -140,9 +139,12 @@ class ScalableBehavior extends Behavior
         if (($data = @unserialize($data)) === false)
             return false;
 
-        if ((int)$this->compressionLevel != 0) {
+        if ((int)$this->compressionLevel != 0 && function_exists('gzuncompress')) {
             $data = (($uncompressed = @gzuncompress($data, (int)$this->compressionLevel)) !== false) ? $uncompressed : $data;
         }
+
+        if (!is_array($data) || empty($data))
+            return false;
 
         return $data;
     }
@@ -150,27 +152,73 @@ class ScalableBehavior extends Behavior
     /**
     * @var array Internal
     */
-    protected $_serializedAttributes = [];
+    protected $_scalableAttributes = [];
 
     /**
-    * Checks behavior configuration
+    * Verifies the configured scalable attributes
     * @return mixed
     */
-    protected function getSerializedAttributes()
+    public function scalableAttributesNames()
     {
-        if (!empty($this->_serializedAttributes))
-            return $this->_serializedAttributes;
+        if (!empty($this->_scalableAttributes))
+            return $this->_scalableAttributes;
 
-        if (!is_array($this->serializedAttributes) || empty($this->serializedAttributes))
+        if (!is_array($this->scalableAttributes) || empty($this->scalableAttributes))
             return null;
 
-        foreach ($this->serializedAttributes as $attribute) {
-            if (isset($this->owner->$attribute) && !in_array($attribute, $this->_serializedAttributes)) {
-                $this->_serializedAttributes[] = $attribute;
+        $attributes = [];
+        foreach ($this->scalableAttributes as $a) {
+            if (in_array($a, $this->objAttributesNames()) && !in_array($a, $attributes)) {
+                $attributes[] = $a;
             }
         }
 
-        return !empty($this->_serializedAttributes) ? $this->_serializedAttributes : null;
+        return !empty($attributes) ? $this->_scalableAttributes = $attributes : null;
+    }
+
+    /**
+    * @var array Internal
+    */
+    protected $_virtualAttributes = [];
+
+    /**
+    * Verifies the configured virtual attributes
+    * @return mixed
+    */
+    public function virtualAttributesNames()
+    {
+        if (!empty($this->_virtualAttributes))
+            return $this->_virtualAttributes;
+
+        if (!is_array($this->virtualAttributes) || empty($this->virtualAttributes))
+            return null;
+
+        $attributes = [];
+        foreach ($this->virtualAttributes as $a) {
+            if (!in_array($a, $this->objAttributesNames()) && !in_array($a, $attributes)) {
+                $attributes[] = $a;
+            }
+        }
+
+        return !empty($attributes) ? $this->_virtualAttributes = $attributes : null;
+    }
+
+    /**
+    * @var array Internal
+    */
+    protected $_objAttributes = [];
+
+    /**
+    * Get the object's attributes / the columns of the corresponding table
+    */
+    public function objAttributesNames()
+    {
+        if (!empty($this->_objAttributes))
+            return $this->_objAttributes;
+
+        $attributes = $this->owner->attributes();
+
+        return !empty($attributes) ? $this->_objAttributes = $attributes : null;
     }
 
     /**
@@ -178,8 +226,8 @@ class ScalableBehavior extends Behavior
     */
     public function __set($name, $value)
     {
-        if (in_array($name, $this->virtualAttributes)) {
-            $this->owner->$name = $value;
+        if (in_array($name, $this->virtualAttributesNames())) {
+            $this->owner->{$name} = $value;
         } else {
             parent::__set($name, $value);
         }
@@ -190,6 +238,6 @@ class ScalableBehavior extends Behavior
     */
     public function canSetProperty($name, $checkVars = true)
     {
-        return in_array($name, $this->virtualAttributes) ? true : parent::canSetProperty($name, $checkVars);
+        return in_array($name, $this->virtualAttributesNames()) ? true : parent::canSetProperty($name, $checkVars);
     }
 }
