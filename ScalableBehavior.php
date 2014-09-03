@@ -36,9 +36,9 @@ use yii\base\Behavior;
 class ScalableBehavior extends Behavior
 {
     /**
-    * @var array The owner object's attributes / the columns of the corresponding table, which are used as storage for the virtual attributes
+    * @var string The owner object's attribute / the column of the corresponding table, which are used as storage for the virtual attributes
     */
-    public $scalableAttributes = [];
+    public $scalableAttribute = 'value';
 
     /**
     * @var array Definition of virtual attributes that are added to the owner object
@@ -70,17 +70,16 @@ class ScalableBehavior extends Behavior
     */
     public function virtualToScalable($event)
     {
-        if (($attributes = $this->scalableAttributesNames()) === null)
+        if (($scalableAttribute = $this->scalableAttributeName()) === null)
             return false;
 
-        foreach ($attributes as $a) {
-            $virtualAttributesArray = [];
-            foreach ($this->virtualAttributesNames() as $virtualAttribute) {
-                $virtualAttributesArray[$virtualAttribute] = $this->owner->{$virtualAttribute};
-            }
-            if (($scalableValue = $this->convert($virtualAttributesArray)) !== false) {
-                $this->owner->{$a} = $scalableValue;
-            }
+        $virtualAttributesArray = [];
+        foreach ($this->virtualAttributesNames() as $virtualAttribute) {
+            $virtualAttributesArray[$virtualAttribute] = $this->owner->{$virtualAttribute};
+        }
+
+        if (($scalableValue = $this->convert($virtualAttributesArray)) !== false) {
+            $this->owner->{$scalableAttribute} = $scalableValue;
         }
     }
 
@@ -92,14 +91,12 @@ class ScalableBehavior extends Behavior
     */
     public function scalableToVirtual($event)
     {
-        if (($attributes = $this->scalableAttributesNames()) === null)
+        if (($scalableAttribute = $this->scalableAttributeName()) === null)
             return false;
 
-        foreach ($attributes as $a) {
-            if (($virtualAttributesArray = $this->unConvert($this->owner->{$a})) !== false) {
-                foreach ($virtualAttributesArray as $key => $value) {
-                    $this->owner->{$key} = $value;
-                }
+        if (($virtualAttributesArray = $this->unConvert($this->owner->{$scalableAttribute})) !== false) {
+            foreach ($virtualAttributesArray as $key => $value) {
+                $this->owner->{$key} = $value;
             }
         }
     }
@@ -152,28 +149,24 @@ class ScalableBehavior extends Behavior
     /**
     * @var array Internal
     */
-    protected $_scalableAttributes = [];
+    protected $_scalableAttribute = null;
 
     /**
-    * Verifies the configured scalable attributes
-    * @return mixed
+    * Verifies the configured scalable attribute
+    * @return null|string
     */
-    public function scalableAttributesNames()
+    public function scalableAttributeName()
     {
-        if (!empty($this->_scalableAttributes))
-            return $this->_scalableAttributes;
+        if ($this->_scalableAttribute !== null)
+            return $this->_scalableAttribute;
 
-        if (!is_array($this->scalableAttributes) || empty($this->scalableAttributes))
+        if (!is_string($this->scalableAttribute) || empty($this->scalableAttribute))
             return null;
 
-        $attributes = [];
-        foreach ($this->scalableAttributes as $a) {
-            if (in_array($a, $this->objAttributesNames()) && !in_array($a, $attributes)) {
-                $attributes[] = $a;
-            }
-        }
+        if (!in_array($this->scalableAttribute, $this->objAttributesNames()))
+            return null;
 
-        return !empty($attributes) ? $this->_scalableAttributes = $attributes : null;
+        return $this->scalableAttribute;
     }
 
     /**
