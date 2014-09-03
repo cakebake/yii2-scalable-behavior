@@ -5,6 +5,7 @@ namespace cakebake\behaviors;
 use Yii;
 use yii\db\ActiveRecord;
 use yii\base\Behavior;
+use yii\helpers\ArrayHelper;
 
 /**
 * Scalable Database Schema
@@ -94,10 +95,18 @@ class ScalableBehavior extends Behavior
         if (($scalableAttribute = $this->scalableAttributeName()) === null)
             return false;
 
-        if (($virtualAttributesArray = $this->unConvert($this->owner->{$scalableAttribute})) !== false) {
-            foreach ($virtualAttributesArray as $key => $value) {
-                $this->owner->{$key} = $value;
-            }
+        $virtualAttributesNames = [];
+        foreach ($this->virtualAttributesNames() as $virtualAttribute) {
+            $virtualAttributesNames[$virtualAttribute] = '';
+        }
+
+        $virtualAttributesArray = ArrayHelper::merge(
+            $virtualAttributesNames,
+            (($a = $this->unConvert($this->owner->{$scalableAttribute})) !== false) ? $a : []
+        );
+
+        foreach ($virtualAttributesArray as $key => $value) {
+            $this->owner->{$key} = $value;
         }
     }
 
