@@ -22,7 +22,8 @@ use yii\helpers\ArrayHelper;
 *     return [
 *         'scaleable' => [
 *             'class' => ScalableBehavior::className(),
-*             ...
+*             'scalableAttribute' => 'value',
+*             'virtualAttributes' => ['about_me', 'birthday']
 *         ],
 *     ];
 * }
@@ -66,19 +67,17 @@ class ScalableBehavior extends Behavior
     */
     public function virtualToScalable($event)
     {
-        if (($scalableAttribute = $this->scalableAttributeName()) === null)
-            return false;
+        if (($this->scalableAttributeName() !== null) &&
+        ($this->virtualAttributesNames() !== null)) {
 
-        if ($this->virtualAttributesNames() === null)
-            return false;
+            $data = [];
+            foreach ($this->virtualAttributesNames() as $name) {
+                if (!empty($this->owner->{$name})) {
+                    $data[$name] = $this->owner->{$name};
+                }
+            }
 
-        $virtualAttributesArray = [];
-        foreach ($this->virtualAttributesNames() as $virtualAttribute) {
-            $virtualAttributesArray[$virtualAttribute] = $this->owner->{$virtualAttribute};
-        }
-
-        if (($scalableValue = $this->convert($virtualAttributesArray)) !== false) {
-            $this->owner->{$scalableAttribute} = $scalableValue;
+            $this->owner->{$this->scalableAttributeName()} = $this->convert($data);
         }
     }
 
@@ -90,64 +89,56 @@ class ScalableBehavior extends Behavior
     */
     public function scalableToVirtual($event = null)
     {
-        if (($scalableAttribute = $this->scalableAttributeName()) === null)
-            return false;
+        if (($this->scalableAttributeName() !== null) &&
+        ($this->virtualAttributesNames() !== null)) {
 
-        if ($this->virtualAttributesNames() === null)
-            return false;
+            $virtualAttributesConf = [];
+            foreach ($this->virtualAttributesNames() as $name) {
+                $virtualAttributesConf[$name] = '';
+            }
 
-        $virtualAttributesNames = [];
-        foreach ($this->virtualAttributesNames() as $virtualAttribute) {
-            $virtualAttributesNames[$virtualAttribute] = '';
-        }
+            $virtualAttributesNames = ArrayHelper::merge(
+                $virtualAttributesConf,
+                (($a = $this->unConvert($this->owner->{$this->scalableAttributeName()})) !== null) ? $a : []
+            );
 
-        $virtualAttributesArray = ArrayHelper::merge(
-            $virtualAttributesNames,
-            (($a = $this->unConvert($this->owner->{$scalableAttribute})) !== false) ? $a : []
-        );
-
-        foreach ($virtualAttributesArray as $key => $value) {
-            if (in_array($key, $this->virtualAttributesNames())) {
-                $this->owner->{$key} = $value;
+            foreach ($virtualAttributesNames as $name => $value) {
+                if (in_array($name, $this->virtualAttributesNames())) {
+                    $this->owner->{$name} = $value;
+                }
             }
         }
     }
 
     /**
-    * Converts data
+    * Converts some input to a serialized string
     *
-    * @param mixed $data
-    * @return string|false
+    * @param mixed $data Input as an array, String, Object, and so on
+    * @return null|string null at fault, string on success
     */
     public function convert($data)
     {
-        if (empty($data))
-            return false;
+        if (empty($data) || ($out = @serialize($data)) === false)
+            return null;
 
-        if (($data = @serialize($data)) === false)
-            return false;
-
-        return $data;
+        return $out;
     }
 
     /**
-    * Unconverts data
+    * Unconverts a serialized string into an array
     *
-    * @param mixed $data
-    * @return mixed
+    * @param string $data Serialized string to convert
+    * @return null|array null at fault, array on success
     */
     public function unConvert($data)
     {
-        if (empty($data))
-            return false;
+        if (empty($data) || !is_string($data) || ($out = @unserialize($data)) === false)
+            return null;
 
-        if (($data = @unserialize($data)) === false)
-            return false;
+        if (!is_array($out) || empty($out))
+            return null;
 
-        if (!is_array($data) || empty($data))
-            return false;
-
-        return $data;
+        return $out;
     }
 
     /**
@@ -164,13 +155,10 @@ class ScalableBehavior extends Behavior
         if ($this->_scalableAttribute !== null)
             return $this->_scalableAttribute;
 
-        if (!is_string($this->scalableAttribute) || empty($this->scalableAttribute))
-            return $this->_scalableAttribute = null;
+        if (in_array((string)$this->scalableAttribute, $this->objAttributesNames()))
+            return $this->_scalableAttribute = $this->scalableAttribute;
 
-        if (!in_array($this->scalableAttribute, $this->objAttributesNames()))
-            return $this->_scalableAttribute = null;
-
-        return $this->_scalableAttribute = $this->scalableAttribute;
+        return null;
     }
 
     /**
