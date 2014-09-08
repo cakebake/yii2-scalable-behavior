@@ -74,6 +74,9 @@ class ScalableBehavior extends Behavior
         if (($scalableAttribute = $this->scalableAttributeName()) === null)
             return false;
 
+        if ($this->virtualAttributesNames() === null)
+            return false;
+
         $virtualAttributesArray = [];
         foreach ($this->virtualAttributesNames() as $virtualAttribute) {
             $virtualAttributesArray[$virtualAttribute] = $this->owner->{$virtualAttribute};
@@ -93,6 +96,9 @@ class ScalableBehavior extends Behavior
     public function scalableToVirtual($event)
     {
         if (($scalableAttribute = $this->scalableAttributeName()) === null)
+            return false;
+
+        if ($this->virtualAttributesNames() === null)
             return false;
 
         $virtualAttributesNames = [];
