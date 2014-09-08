@@ -112,7 +112,9 @@ class ScalableBehavior extends Behavior
         );
 
         foreach ($virtualAttributesArray as $key => $value) {
-            $this->owner->{$key} = $value;
+            if (in_array($key, $this->virtualAttributesNames())) {
+                $this->owner->{$key} = $value;
+            }
         }
     }
 
