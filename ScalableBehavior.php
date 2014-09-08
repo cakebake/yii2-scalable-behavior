@@ -47,11 +47,6 @@ class ScalableBehavior extends Behavior
     public $virtualAttributes = [];
 
     /**
-    * @var int Compression of the virtual attributes. Can be given as 0 for no compression up to 9 for maximum compression.
-    */
-    public $compressionLevel = 0;
-
-    /**
     * @inheritdoc
     */
     public function events()
@@ -132,10 +127,6 @@ class ScalableBehavior extends Behavior
         if (($data = @serialize($data)) === false)
             return false;
 
-        if ((int)$this->compressionLevel != 0 && function_exists('gzcompress')) {
-            $data = (($compressed = @gzcompress($data, (int)$this->compressionLevel)) !== false) ? $compressed : $data;
-        }
-
         return $data;
     }
 
@@ -152,10 +143,6 @@ class ScalableBehavior extends Behavior
 
         if (($data = @unserialize($data)) === false)
             return false;
-
-        if ((int)$this->compressionLevel != 0 && function_exists('gzuncompress')) {
-            $data = (($uncompressed = @gzuncompress($data, (int)$this->compressionLevel)) !== false) ? $uncompressed : $data;
-        }
 
         if (!is_array($data) || empty($data))
             return false;
