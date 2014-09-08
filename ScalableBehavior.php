@@ -93,7 +93,7 @@ class ScalableBehavior extends Behavior
     *
     * @param mixed $event
     */
-    public function scalableToVirtual($event)
+    public function scalableToVirtual($event = null)
     {
         if (($scalableAttribute = $this->scalableAttributeName()) === null)
             return false;
@@ -176,12 +176,12 @@ class ScalableBehavior extends Behavior
             return $this->_scalableAttribute;
 
         if (!is_string($this->scalableAttribute) || empty($this->scalableAttribute))
-            return null;
+            return $this->_scalableAttribute = null;
 
         if (!in_array($this->scalableAttribute, $this->objAttributesNames()))
-            return null;
+            return $this->_scalableAttribute = null;
 
-        return $this->scalableAttribute;
+        return $this->_scalableAttribute = $this->scalableAttribute;
     }
 
     /**
@@ -232,13 +232,30 @@ class ScalableBehavior extends Behavior
     /**
     * @inheritdoc
     */
-    public function __set($name, $value)
+    public function canGetProperty($name, $checkVars = true)
     {
-        if (in_array($name, $this->virtualAttributesNames())) {
-            $this->owner->{$name} = $value;
-        } else {
-            parent::__set($name, $value);
-        }
+        return in_array($name, $this->virtualAttributesNames()) ? true : parent::canGetProperty($name, $checkVars);
+    }
+
+    /**
+    * @var array Internal
+    */
+    protected $_virtualCache = [];
+
+    /**
+    * @inheritdoc
+    */
+    public function __get($name)
+    {
+        if (!in_array($name, $this->virtualAttributesNames()))
+            return parent::__get($name);
+
+        if (array_key_exists($name, $this->_virtualCache))
+            return $this->_virtualCache[$name];
+
+        $this->scalableToVirtual();
+
+        return $this->_virtualCache[$name] = $this->owner->{$name};
     }
 
     /**
@@ -247,5 +264,17 @@ class ScalableBehavior extends Behavior
     public function canSetProperty($name, $checkVars = true)
     {
         return in_array($name, $this->virtualAttributesNames()) ? true : parent::canSetProperty($name, $checkVars);
+    }
+
+    /**
+    * @inheritdoc
+    */
+    public function __set($name, $value)
+    {
+        if (in_array($name, $this->virtualAttributesNames())) {
+            $this->owner->{$name} = $value;
+        } else {
+            parent::__set($name, $value);
+        }
     }
 }
